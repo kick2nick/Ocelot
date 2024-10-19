@@ -2,6 +2,7 @@
 using Ocelot.Configuration;
 using Ocelot.Logging;
 using Ocelot.Provider.Kubernetes.Interfaces;
+using System.Reactive.Concurrency;
 
 namespace Ocelot.Provider.Kubernetes
 {
@@ -31,7 +32,7 @@ namespace Ocelot.Provider.Kubernetes
 
             if (WatchKube.Equals(config.Type, StringComparison.OrdinalIgnoreCase))
             {
-                return new WatchKube(configuration, factory, kubeClient, serviceBuilder);
+                return new WatchKube(configuration, factory, kubeClient, serviceBuilder, Scheduler.Default);
             }
 
             var defaultK8sProvider = new Kube(configuration, factory, kubeClient, serviceBuilder);
