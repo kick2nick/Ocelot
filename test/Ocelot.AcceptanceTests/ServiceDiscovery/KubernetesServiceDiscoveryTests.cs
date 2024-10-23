@@ -22,21 +22,20 @@ namespace Ocelot.AcceptanceTests.ServiceDiscovery;
 public sealed class KubernetesServiceDiscoveryTests : ConcurrentSteps, IDisposable
 {
     private readonly string _kubernetesUrl;
-    private readonly IKubeApiClient _clientFactory;
+    private readonly Action<KubeClientOptions> _optionsConfigure;
     private readonly ServiceHandler _kubernetesHandler;
     private string _receivedToken;
 
     public KubernetesServiceDiscoveryTests()
     {
         _kubernetesUrl = DownstreamUrl(PortFinder.GetRandomPort());
-        var option = new KubeClientOptions
+        _optionsConfigure = opts =>
         {
-            ApiEndPoint = new Uri(_kubernetesUrl),
-            AccessToken = "txpc696iUhbVoudg164r93CxDTrKRVWG",
-            AuthStrategy = KubeAuthStrategy.BearerToken,
-            AllowInsecure = true,
+            opts.ApiEndPoint = new Uri(_kubernetesUrl);
+            opts.AccessToken = "txpc696iUhbVoudg164r93CxDTrKRVWG";
+            opts.AuthStrategy = KubeAuthStrategy.BearerToken;
+            opts.AllowInsecure = true;
         };
-        _clientFactory = KubeApiClient.Create(option);
         _kubernetesHandler = new();
     }
 
@@ -44,6 +43,29 @@ public sealed class KubernetesServiceDiscoveryTests : ConcurrentSteps, IDisposab
     {
         _kubernetesHandler.Dispose();
         base.Dispose();
+    }
+    
+    [Fact]
+    public void Should_Fail_ReturnServicesFromK8s_OnSecondRequest()
+    {
+        const string namespaces = nameof(KubernetesServiceDiscoveryTests);
+        const string serviceName = nameof(ShouldReturnServicesFromK8s);
+        var servicePort = PortFinder.GetRandomPort();
+        var downstreamUrl = LoopbackLocalhostUrl(servicePort);
+        var downstream = new Uri(downstreamUrl);
+        var subsetV1 = GivenSubsetAddress(downstream);
+        var endpoints = GivenEndpoints(subsetV1);
+        var route = GivenRouteWithServiceName(namespaces);
+        var configuration = GivenKubeConfiguration(namespaces, route);
+        var downstreamResponse = serviceName;
+        this.Given(x => GivenServiceInstanceIsRunning(downstreamUrl, downstreamResponse))
+            .And(x => x.GivenThereIsAFakeKubernetesProvider(endpoints, serviceName, namespaces))
+            .And(_ => GivenThereIsAConfiguration(configuration))
+            .And(_ => GivenOcelotIsRunningWithServices(WithKubernetes))
+            .When(_ => WhenIGetUrlOnTheApiGateway("/"))
+            .When(_ => WhenIGetUrlOnTheApiGateway("/"))
+            .Then(_ => ThenTheStatusCodeShouldBe(HttpStatusCode.InternalServerError))
+            .BDDfy();
     }
 
     [Fact]
@@ -311,14 +333,14 @@ public sealed class KubernetesServiceDiscoveryTests : ConcurrentSteps, IDisposab
     }
 
     private void WithKubernetes(IServiceCollection services) => services
-        .AddOcelot().AddKubernetes()
-        .Services.RemoveAll<IKubeApiClient>().AddSingleton(_clientFactory);
+        .AddOcelot().AddKubernetes(false)
+        .Services.Configure(_optionsConfigure);
 
     private void WithKubernetesAndRoundRobin(IServiceCollection services) => services
-        .AddOcelot().AddKubernetes()
+        .AddOcelot().AddKubernetes(false)
         .AddCustomLoadBalancer<RoundRobinAnalyzer>(GetRoundRobinAnalyzer)
         .Services
-        .RemoveAll<IKubeApiClient>().AddSingleton(_clientFactory)
+        .Configure(_optionsConfigure)
         .RemoveAll<IKubeServiceCreator>().AddSingleton<IKubeServiceCreator, FakeKubeServiceCreator>();
 
     private int _k8sCounter, _k8sServiceGeneration;

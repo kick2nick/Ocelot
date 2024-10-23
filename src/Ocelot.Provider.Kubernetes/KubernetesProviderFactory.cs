@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Ocelot.Configuration;
 using Ocelot.Logging;
 using Ocelot.Provider.Kubernetes.Interfaces;
@@ -17,7 +18,9 @@ namespace Ocelot.Provider.Kubernetes
         private static IServiceDiscoveryProvider CreateProvider(IServiceProvider provider, ServiceProviderConfiguration config, DownstreamRoute route)
         {
             var factory = provider.GetService<IOcelotLoggerFactory>();
-            var kubeClient = provider.GetService<IKubeApiClient>();
+            var kubeClient = provider
+                .GetRequiredService<IHttpContextAccessor>()
+                .HttpContext!.RequestServices.GetRequiredService<IKubeApiClient>();
             var serviceBuilder = provider.GetService<IKubeServiceBuilder>();
 
             var configuration = new KubeRegistryConfiguration
