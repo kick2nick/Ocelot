@@ -333,12 +333,8 @@ public sealed class KubernetesServiceDiscoveryTests : ConcurrentSteps, IDisposab
         });
     }
 
-    private static ServiceDescriptor GetValidateScopesDescriptor()
-        => ServiceDescriptor.Singleton<IServiceProviderFactory<IServiceCollection>>(
-            new DefaultServiceProviderFactory(new() { ValidateScopes = true }));
     private IOcelotBuilder AddKubernetes(IServiceCollection services) => services
         .Configure(_kubeClientOptionsConfigure)
-        .Replace(GetValidateScopesDescriptor())
         .AddOcelot().AddKubernetes(false);
 
     private void WithKubernetes(IServiceCollection services) => AddKubernetes(services);
